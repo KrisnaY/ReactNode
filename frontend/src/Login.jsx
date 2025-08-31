@@ -1,5 +1,5 @@
 import axios from 'axios';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import validation from './LoginValidation';
 import { Link, useNavigate } from 'react-router-dom';
 import logVal from './LoginValidation';
@@ -17,28 +17,42 @@ function Login() {
   }
   const navigate = useNavigate();
 
+  const handleGoogleLogin = () => {
+    window.location.href = "http://localhost:8000/auth/google";
+  };
+
+  const handleFacebookLogin = () => {
+    window.location.href = "http://localhost:8000/auth/facebook";
+   }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("google") === "true" || params.get("facebook") === "true") {
+      axios.get("http://localhost:8000/verify", { withCredentials: true })
+        .then(res => {
+          localStorage.setItem("token", res.data.token);
+          navigate("/homeonepage");
+        })
+        .catch(err => {
+          console.error("Google login fetch failed", err);
+        });
+    }
+  }, [navigate]);
+
   const handleSubmit = e => {
     e.preventDefault();
     setError(logVal(value));
     if(error.username === "" && error.password === ""){
-      axios.post('http://localhost:8000/login', value, {withCredentials: true})
+      axios.post('http://localhost:8000/login', value)
       .then(res => {
-        localStorage.setItem("user", JSON.stringify(res.data.user));
-        console.log(res);
+        localStorage.setItem("token", res.data.token);
+        // console.log(res);
         navigate('/homeonepage')
       })
       .catch(err => alert(err.response?.data?.message || "Login failed"));
     }
   }
 
-
-  // function handleSubmit(event){
-  //   event.preventDefault();
-  //   axios.post('http://localhost:8000/login', value)
-  //   .then(res => console.log(res))
-  //   .catch(err => console.log(err))
-  // }
-    
   return (
     <div className='d-flex vh-100 bg-primary justify-content-center align-items-center'>
       <div className='p-3 bg-white w-50'>
@@ -56,7 +70,15 @@ function Login() {
             {error.password && <span className='text-danger'>{error.password}</span>}
           </div>
           <button type="submit" className="btn btn-primary mb-3">Submit</button>
+          {/* <button type="submit" className="btn btn-primary mb-3">Submit</button> */}
+          <button type="button" onClick={handleGoogleLogin} className="btn btn-danger mb-3 w-100">
+            Login with Google
+          </button>
+          <button type="button" onClick={handleFacebookLogin} className="btn btn-danger mb-3 w-100">
+            Login with Facebook
+          </button>
           <Link to="/register" className='btn btn-default border w-100 bg-light rounded-0'>Register</Link>
+          {/* <Link to="/register" className='btn btn-default border w-100 bg-light rounded-0'>Register</Link> */}
         </form>
       </div>
     </div>

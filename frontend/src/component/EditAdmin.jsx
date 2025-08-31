@@ -4,23 +4,17 @@ import Button from 'react-bootstrap/Button';
 import axios from 'axios';
 import { useEffect } from 'react';
 
-function CenteredModal(props) {
+function EditAdmin(props) {
     const { user, onHide, onUpdated } = props;
 
     const [values, setValues] = useState({
         username: user.username,
-        email: user.email,
-        password: user.password,
-        oldpassword: user.oldpassword,
         role: user.role
     });
 
     useEffect(() => {
         setValues({
             username: user.username,
-            email: user.email,
-            password: user.password,
-            oldpassword: user.oldpassword,
             role: user.role
         });
     }, [user]);
@@ -33,7 +27,7 @@ function CenteredModal(props) {
     const handleUpdate = e => {
         e.preventDefault();
         const token = localStorage.getItem("token");
-        axios.put(`http://localhost:8000/update/${user.id}`, values, {
+        axios.put(`http://localhost:8000/updateRole/${user.id}`, values, {
                 headers: { "x-access-token": token }
             })
             .then(() => {
@@ -63,34 +57,9 @@ function CenteredModal(props) {
                             name="username"
                             value={values.username}
                             onChange={handleInput}
+                            disabled
                         />
                     </div>
-                    <div className="form-group mb-4">
-                        <label>Email</label>
-                        <input
-                            type="text"
-                            className="form-control"
-                            name="email"
-                            value={values.email}
-                            onChange={handleInput}
-                        />
-                    </div>
-                    <div className="form-group mb-4">
-                        <label>new Password</label>
-                        <input
-                            type="password"
-                            className="form-control"
-                            name="password"
-                            onChange={handleInput} />
-                    </div>
-                    <div className="form-group mb-4">
-                            <label>Confirm Old Password</label>
-                            <input
-                                type="password"
-                                className="form-control"
-                                name="oldpassword"
-                                onChange={handleInput} />
-                        </div>
                     <div className="form-group mb-4">
                         <label>Role</label>
                         <input
@@ -111,4 +80,4 @@ function CenteredModal(props) {
     );
 }
 
-export default CenteredModal;
+export default EditAdmin;

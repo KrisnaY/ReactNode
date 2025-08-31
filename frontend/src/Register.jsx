@@ -54,7 +54,6 @@ function Register () {
                 {error.password && <span className='text-danger'>{error.password}</span>}
             </div>
             <button type="submit" className="btn btn-primary mb-3">Submit</button>
-            <Link to="/register" className='btn btn-default border w-100 bg-light rounded-0'>Register</Link>
         </form>
       </div>
     </div>

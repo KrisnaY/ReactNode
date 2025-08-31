@@ -3,24 +3,36 @@ import mysql from 'mysql'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import session from 'express-session'
+import bcrypt from 'bcrypt'
+import bodyParser from 'body-parser'
+import cookieParser from 'cookie-parser'
+import { sessionCheck, isAdmin } from './auth/authenticate.js'
+import passport from "passport";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import jwt from 'jsonwebtoken'
+import { Strategy as FacebookStrategy } from 'passport-facebook';
+const saltRounds = 10
 
 dotenv.config();
 
 const app = express();
 app.use(cors({
-    origin: 'http://localhost:3000', // your React app
+    origin: 'http://localhost:3000',
     credentials: true
 }));
+
+app.use(cookieParser());
+app.use(bodyParser.urlencoded({extended: true}))
 app.use(express.json());
 
 app.use(session({
-    secret: process.env.SESSION_SECRET, // change to env variable in production
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: false, // set true if using HTTPS
+        secure: false,
         httpOnly: true,
-        maxAge: 1000 * 60 * 60 // 1 hour
+        maxAge: 1000 * 60 * 60
     }
 }));
 
@@ -31,26 +43,213 @@ const db = mysql.createConnection({
     database: process.env.DB_NAME
 })
 
-app.post('/login', (req, res) => {
-    const sql = "SELECT * FROM user WHERE username = ? AND password = ?";
-    db.query(sql, [req.body.username, req.body.password], (err, result) => {
-        if (err) return res.status(500).json({ message: "Server error" });
-        if (result.length > 0) {
-            req.session.user = result[0]; // store user in session
-            return res.json({ message: "Login successful", user: result[0] });
-        } else {
-            return res.status(401).json({ message: "Invalid credentials" });
-        }
+const verifyToken = (req, res, next) => {
+    const token = req.headers["x-access-token"] || req.cookies.token;
+
+    if (!token) {
+        return res.status(401).json({ message: "Tidak ada token" });
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(403).json({ message: "Token invalid or expired" });
+
+    db.query("SELECT token FROM user WHERE id = ?", [decoded.id], (err, result) => {
+      if (err) return res.status(500).json({ message: "error" });
+      if (result.length === 0) return res.status(401).json({ message: "User tidak ditemukan" });
+
+      if (result[0].token !== token) {
+        return res.status(401).json({ message: "Token tidak sesuai, silahkan login kembali" });
+      }
+
+      req.user = decoded;
+      next();
+    });
+  });
+}
+
+
+app.get('/books/:id', verifyToken, (req, res) => {
+    const sql = "CALL selectBarang(?)";
+    const id = req.params.id;
+
+    db.query(sql, [id], (err, result) => {
+        if(err) return res.json(err);
+
+        const encryptedPayload = jwt.sign(
+            { data: result[0] }, 
+            process.env.JWT_SECRET, 
+            { expiresIn: "5m" }
+        );
+
+        return res.json({token : encryptedPayload})
     })
 })
-// app.post('/login', (req, res) => {
-//     const sql = "SELECT * FROM user WHERE username = ? AND password = ?";
 
-//     db.query(sql, [req.body.username, req.body.password], (err, result) => {
-//         if(err) return res.json("Login Failed");
-//         return res.json(result);
-//     })
-// })
+passport.use(new FacebookStrategy({
+    clientID: process.env.FACEBOOK_APP_ID,
+    clientSecret: process.env.FACEBOOK_APP_SECRET,
+    callbackURL: "http://localhost:8000/auth/facebook/callback", 
+    profileFields: ['emails', 'name']
+  }, (accessToken, refreshToken, profile, cb) => {
+        const fbId = profile.id;
+        const email = profile.emails && profile.emails.length > 0
+            ? profile.emails[0].value
+            : `fb_${fbId}@facebook.com`;
+        const username = profile.name
+            ? `${profile.name.givenName || ""} ${profile.name.familyName || ""}`.trim()
+            : "Facebook User";
+
+        const checkSql = "SELECT * FROM user WHERE facebookId = ? OR email = ?";
+        db.query(checkSql, [fbId, email], (err, result) => {
+        if (err) return cb(err, null);
+
+        if (result.length === 0) {
+            const insertSql = "INSERT INTO user (username, email, password, facebookId, role) VALUES (?, ?, ?, ?, ?)";
+            db.query(insertSql, [username, email, "facebook_oauth", fbId, 1], (err, insertResult) => {
+            if (err) return cb(err, null);
+                return cb(null, { 
+                    id: insertResult.insertId, 
+                    email, 
+                    username, 
+                    role: 1 
+                });
+            });
+        } else {
+            return cb(null, { 
+                id: result[0].id, 
+                email: result[0].email, 
+                username: result[0].username, 
+                role: result[0].role 
+            });
+        }
+    });
+}));
+
+app.get('/auth/facebook',
+  passport.authenticate('facebook'));
+
+app.get('/auth/facebook/callback',
+  passport.authenticate('facebook', { failureRedirect: '/', session: false }),
+    (req, res) => {
+        const token = jwt.sign(
+        { id: req.user.id, email: req.user.email, username: req.user.username, role: req.user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: "1h" }
+        );
+
+        db.query("UPDATE user SET token = ? WHERE id = ?", [token, req.user.id]);
+
+        res.cookie('token', token, { 
+            httpOnly: true, 
+            maxAge: 3600000 
+        });
+
+        res.redirect('http://localhost:3000/?facebook=true');
+});
+
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: "http://localhost:8000/auth/google/callback"
+    }, (accessToken, refreshToken, profile, done) => {
+        const email = profile.emails[0].value;
+        const googleId = profile.id;
+        const username = profile.displayName;
+       
+        const checkSql = "SELECT * FROM user WHERE email = ?";
+        db.query(checkSql, [email], (err, result) => {
+            if (err) return done(err, null);
+
+            if (result.length === 0) {
+            const insertSql = "INSERT INTO user (username, email, password, googleId, role) VALUES (?, ?, ?, ?, ?)";
+            db.query(insertSql, [username, email, "google_oauth", googleId, 1], (err, insertResult) => {
+                if (err) return done(err, null);
+                return done(null, { 
+                    id: insertResult.insertId, 
+                    email, 
+                    username,
+                    role: 1 
+                });
+            });
+            } else {
+            return done(null, { 
+                id: result[0].id, 
+                email: email, 
+                username: username, 
+                role: result[0].role 
+            });
+            }
+        });
+    }
+));
+
+app.get("/auth/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
+
+app.get("/auth/google/callback",
+  passport.authenticate("google", { session: false }),
+  (req, res) => {
+    const token = jwt.sign(
+      { id: req.user.id, email: req.user.email, username: req.user.username, role: req.user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    db.query("UPDATE user SET token = ? WHERE id = ?", [token, req.user.id], (err) => {
+        if (err) console.error("Error saving token:", err);
+    });
+
+    res.cookie('token', token, { 
+        httpOnly: true, 
+        maxAge: 3600000 
+    }); // 1 hour
+
+    res.redirect(`http://localhost:3000/?google=true`);
+  }
+);
+
+app.post('/login', (req, res) => {
+    const sql = "SELECT * FROM user WHERE username = ?";
+    const password = req.body.password.toString();
+
+    db.query(sql, [req.body.username], (err, result) => {
+        if (err) return res.status(500).json({ error: "Server error" });
+        if (result.length === 0) {
+            return res.status(404).json({ loggedIn: false, message: "User tidak ditemukan" });
+        }
+
+        if(result[0].googleId && result[0].password === "google_oauth"){
+            return res.status(400).json({ message: "User ini terdaftar melalui Google OAuth. Silakan gunakan Google Login." });
+        }
+        if(result[0].googleId && result[0].password === "google_oauth"){
+            return res.status(400).json({ message: "User ini terdaftar melalui Google OAuth. Silakan gunakan Google Login." });
+        }
+        // console.log(result)
+        bcrypt.compare(password, result[0].password, (error, response) => {
+            if (error) return res.status(500).json({ error });
+            if (response) {
+                const token = jwt.sign(
+                { id: result[0].id, username: result[0].username, email: result[0].email, role: result[0].role },
+                process.env.JWT_SECRET,
+                { expiresIn: "1h" }
+                );
+
+                db.query("UPDATE user SET token = ? WHERE id = ?", [token, result[0].id], (updateErr) => {
+                    if (updateErr) return res.status(500).json({ message: "Error saving token" });
+                    res.cookie("token", token, { httpOnly: true});
+                    res.json({ message: "Login success", token });
+                })
+            } else {
+                return res.status(401).json({ message: "Password salah" });
+            }
+        });
+    });
+});
+
+app.get("/verify", verifyToken, (req, res) => {
+  res.json({ token: req.cookies.token });
+});
 
 app.get('/check-session', (req, res) => {
     if (req.session.user) {
@@ -58,72 +257,148 @@ app.get('/check-session', (req, res) => {
     } else {
         return res.json({ loggedIn: false });
     }
-})
+});
 
 app.post('/logout', (req, res) => {
     req.session.destroy(err => {
         if (err) return res.status(500).json({ message: "Logout failed" });
-        res.clearCookie('connect.sid');
+        res.clearCookie('token');
         return res.json({ message: "Logged out" });
     })
 })
 
-app.post('/user', (req, res) => {
-    const sql = "CALL insertUser(?)";
-    const values = [
-        req.body.username,
-        req.body.email,
-        req.body.password
-    ]
-    db.query(sql, [values], (err, results) => {
-        if(err) return res.json(err);
-        return res.json(results);
+app.post('/user', verifyToken, (req, res) => {
+    const sql = "CALL insertUser(?, ?, ?)";
+    const password = req.body.password;
+
+    bcrypt.hash(password, saltRounds, (err, hash) => {
+        if(err){
+            res.send({err : err});
+        }
+        db.query(sql, [req.body.username, req.body.email, hash], (err, results) => {
+            if(err) return res.json(err);
+            return res.json({message : "Berhasil memasukan user"})
+        })
+    })
+    
+})
+
+app.post('/barang', verifyToken, (req, res) => {
+    const sql = "CALL insertBarang(?, ?, ?)";
+    const token = req.headers["x-access-token"];
+
+    jwt.verify(token, process.env.JWT_SECRET,(err, decode) => {
+        if(err) return res.status(403).json({message : "Tidak ada token atau token invalid"});
+        const id = decode.id;
+        db.query(sql, [req.body.namaBarang, req.body.jmlBarang, id], (err, results) => {
+            if(err) res.json(err);
+            return res.json({message : "Berhasil memasukan barang"})
+        });
     })
 })
 
 app.post('/register', (req, res) => {
-    const sql = "CALL insertUser(?)";
-    const value = [req.body.username, req.body.email, req.body.password];
+    const sql = "CALL insertUser(?, ?, ?)";
+    // const value = [];
+    const password = req.body.password.toString();
+    bcrypt.hash(password, saltRounds, (err, hash) => {
+        if(err){
+            console.log(err);
+        }
+        
+        db.query(sql, [req.body.username, req.body.email, hash], (err, result) => {
+            if(err) res.send(err);
+            res.send(result);
+        })
+    });
+})
 
-    db.query(sql, [value], (err, result) => {
-        if(err) return res.json(err);
-        return res.json(result);
+// app.get('/get/:id', verifyToken, (req, res) => {
+//     const sql = "CALL getUser(?)";
+//     const id = req.params.id
+    
+//     db.query(sql, [id], (err, result) => {
+//         if(err) return res.json({Message: "Error in Server"});
+//         return res.json({message: "berhasil menambahkan data"});
+//     })
+// })
+
+app.put('/updateRole/:id', verifyToken, (req, res) => {
+    const sql = "CALL roleUpdate(?, ?)";
+
+    db.query(sql, [req.params.id, req.body.role], (err, result) => {
+        if(err) return res.status(500).json({Message : "Error dalam melakukan update"})
+        return res.json({message: "berhasil mengupdate data"})
     })
 })
 
-app.get('/get/:id', (req, res) => {
-    const sql = "CALL getUser(?)";
-    const id = req.params.id
+app.put('/update/:id', verifyToken, (req, res) => {
+    const sqlUpdate = "CALL editUser(?, ?, ?, ?)";
+    const sqlCheck = "CALL getUser(?)";
 
-    db.query(sql, [id], (err, result) => {
-        if(err) return res.json({Message: "Error in Server"});
-        return res.json(result);
-    })
-})
+    db.query(sqlCheck, [req.params.id], (err, result) => {
+        if (err) return res.status(500).json({ Message: "Error in Server" });
 
-app.put('/update/:id', (req, res) => {
-    const sql = "CALL editUser(?, ?, ?, ?)"
-    const id = req.params.id;
-    db.query(sql, [req.body.username, req.body.email, req.body.password, id], (err, result) => {
-        if(err) return res.json({Message: "error inside server"});
-        return res.json(result);
-    })
-})
+        const oldData = result[0];
+        if (!oldData) {
+            return res.status(404).json({ Message: "Tidak menemukan user" });
+        }
 
-app.get('/', (req, res) => {
+        const oldPass = oldData[0].password;
+        
+        if (oldData.password === "google_oauth" || oldData.password === "facebook_oauth") {
+            db.query(sqlUpdate, [req.body.username, req.body.email, oldData.password, req.params.id], (err) => {
+                if (err) return res.status(500).json({ Message: "Error mengupdate data OAuth" });
+                return res.json({ Message: "Berhasil mengupdate data OAuth user (tanpa password)" });
+            });
+            return;
+        }
+        
+        bcrypt.compare(req.body.oldpassword, oldPass, (err, match) => {
+            if (err) return res.status(500).json({ Message: "Error dalam pengecekan password lama" });
+            if (!match) return res.status(401).json({ Message: "Password lama salah" });
+
+            if (req.body.password !== "") {
+                bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
+                    if (err) return res.status(500).json({ Message: "Error dalam melakukan hashing" });
+
+                    db.query(sqlUpdate, [req.body.username, req.body.email, hash, req.params.id], (err) => {
+                        if (err) return res.status(500).json({ Message: "Error mengupdate data" });
+                        return res.json({ Message: "Berhasil mengupdate data dengan password baru" });
+                    });
+                });
+            } else {    
+                db.query(sqlUpdate, [req.body.username, req.body.email, oldPass, req.params.id], (err) => {
+                    if (err) return res.status(500).json({ Message: "Error mengupdate data" });
+                    return res.json({ Message: "Berhasil mengupdate data tanpa ganti password" });
+                });
+            }
+        });
+
+    });
+});
+
+app.get('/', verifyToken, (req, res) => {
     const sql = "CALL selectAll()";
     db.query(sql, (err, data) => {
         if(err) return res.json(err);
-        return res.json(data);  
+
+        const encryptedPayload = jwt.sign(
+            { data: data }, 
+            process.env.JWT_SECRET, 
+            { expiresIn: "5m" } // short-lived
+        );
+
+        return res.json({token : encryptedPayload})
     })
 })
 
-app.delete('/delete/:id', (req, res) => {
+app.delete('/delete/:id', verifyToken, (req, res) => {
     const sql = "CALL deleteUser(?)"
     const id = req.params.id;
     db.query(sql, [id], (err, result) => {
         if(err) return res.json(err);
-        return res.json(result);
+        return res.json({message: "berhasil melakukan delete data"});
     })
 })
 

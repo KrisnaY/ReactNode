@@ -13,7 +13,10 @@ function Create() {
 
     const handleSubmit = e =>{
         e.preventDefault();
-        axios.post('http://localhost:8000/user', value)
+        const token = localStorage.getItem("token");
+        axios.post('http://localhost:8000/user', value, {
+            headers: { "x-access-token": token }
+        })
         .then(res => {
          console.log(res);
          navigate('/home')   
@@ -25,15 +28,15 @@ function Create() {
     <div className='d-flex vh-100 bg-primary justify-content-center align-items-center'>
         <div className='w-50 bg-white rounded p-3'>
             <form onSubmit={handleSubmit}>
-                <h2>Tambah User</h2>
+                <h2>Tambah Buku</h2>
                 <div className="form-group mb-4">
-                    <label >Username</label>
+                    <label >Nama Buku</label>
                     <input type="text" className="form-control" placeholder='Enter Username' aria-describedby="emailHelp" onChange={e => setValue({...value, username: e.target.value})}/>
                 </div>
                 <div className="form-group mb-4">
                     <label >Email</label>
                     <input type="text" className="form-control" placeholder='Enter Email' aria-describedby="emailHelp" onChange={e => setValue({...value, email: e.target.value})}/>
-                    <small id="emailHelp" className="form-text text-muted">We'll never share your email with anyone else.</small>
+
                 </div>
                 <div className="form-group mb-4">
                     <label >Password</label>
