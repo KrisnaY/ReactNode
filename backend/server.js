@@ -6,7 +6,6 @@ import session from 'express-session'
 import bcrypt from 'bcrypt'
 import bodyParser from 'body-parser'
 import cookieParser from 'cookie-parser'
-import { sessionCheck, isAdmin } from './auth/authenticate.js'
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import jwt from 'jsonwebtoken'
@@ -17,7 +16,7 @@ dotenv.config();
 
 const app = express();
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: 'http://myapp.com',
     credentials: true
 }));
 
@@ -53,7 +52,7 @@ const verifyToken = (req, res, next) => {
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
     if (err) return res.status(403).json({ message: "Token invalid or expired" });
 
-    db.query("SELECT token FROM user WHERE id = ?", [decoded.id], (err, result) => {
+    db.query("CALL getToken(?)", [decoded.id], (err, result) => {
       if (err) return res.status(500).json({ message: "error" });
       if (result.length === 0) return res.status(401).json({ message: "User tidak ditemukan" });
 
@@ -66,7 +65,6 @@ const verifyToken = (req, res, next) => {
     });
   });
 }
-
 
 app.get('/books/:id', verifyToken, (req, res) => {
     const sql = "CALL selectBarang(?)";
@@ -88,7 +86,7 @@ app.get('/books/:id', verifyToken, (req, res) => {
 passport.use(new FacebookStrategy({
     clientID: process.env.FACEBOOK_APP_ID,
     clientSecret: process.env.FACEBOOK_APP_SECRET,
-    callbackURL: "http://localhost:8000/auth/facebook/callback", 
+    callbackURL: "http://api.myapp.com/auth/facebook/callback", 
     profileFields: ['emails', 'name']
   }, (accessToken, refreshToken, profile, cb) => {
         const fbId = profile.id;
@@ -99,12 +97,12 @@ passport.use(new FacebookStrategy({
             ? `${profile.name.givenName || ""} ${profile.name.familyName || ""}`.trim()
             : "Facebook User";
 
-        const checkSql = "SELECT * FROM user WHERE facebookId = ? OR email = ?";
+        const checkSql = "CALL fbCheck(?, ?)";
         db.query(checkSql, [fbId, email], (err, result) => {
         if (err) return cb(err, null);
 
         if (result.length === 0) {
-            const insertSql = "INSERT INTO user (username, email, password, facebookId, role) VALUES (?, ?, ?, ?, ?)";
+            const insertSql = "CALL fbInsert(?, ?, ?, ?, ?)";
             db.query(insertSql, [username, email, "facebook_oauth", fbId, 1], (err, insertResult) => {
             if (err) return cb(err, null);
                 return cb(null, { 
@@ -137,31 +135,31 @@ app.get('/auth/facebook/callback',
         { expiresIn: "1h" }
         );
 
-        db.query("UPDATE user SET token = ? WHERE id = ?", [token, req.user.id]);
+        db.query("CALL setToken(?, ?)", [token, req.user.id]);
 
         res.cookie('token', token, { 
             httpOnly: true, 
             maxAge: 3600000 
         });
 
-        res.redirect('http://localhost:3000/?facebook=true');
+        res.redirect('http://myapp.com/?facebook=true');
 });
 
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: "http://localhost:8000/auth/google/callback"
+  callbackURL: "http://api.myapp.com/auth/google/callback"
     }, (accessToken, refreshToken, profile, done) => {
         const email = profile.emails[0].value;
         const googleId = profile.id;
         const username = profile.displayName;
        
-        const checkSql = "SELECT * FROM user WHERE email = ?";
-        db.query(checkSql, [email], (err, result) => {
+        const checkSql = "CALL googleCheck(?, ?)";
+        db.query(checkSql, [email, googleId], (err, result) => {
             if (err) return done(err, null);
 
             if (result.length === 0) {
-            const insertSql = "INSERT INTO user (username, email, password, googleId, role) VALUES (?, ?, ?, ?, ?)";
+            const insertSql = "CALL googleInsert(?, ?, ?, ?, ?)";
             db.query(insertSql, [username, email, "google_oauth", googleId, 1], (err, insertResult) => {
                 if (err) return done(err, null);
                 return done(null, { 
@@ -196,21 +194,21 @@ app.get("/auth/google/callback",
       { expiresIn: "1h" }
     );
 
-    db.query("UPDATE user SET token = ? WHERE id = ?", [token, req.user.id], (err) => {
+    db.query("CALL setToken(?, ?)", [token, req.user.id], (err) => {
         if (err) console.error("Error saving token:", err);
     });
 
     res.cookie('token', token, { 
         httpOnly: true, 
         maxAge: 3600000 
-    }); // 1 hour
+    }); 
 
-    res.redirect(`http://localhost:3000/?google=true`);
+    res.redirect(`http://myapp.com/?google=true`);
   }
 );
 
 app.post('/login', (req, res) => {
-    const sql = "SELECT * FROM user WHERE username = ?";
+    const sql = "CALL loginUser(?)";
     const password = req.body.password.toString();
 
     db.query(sql, [req.body.username], (err, result) => {
@@ -249,14 +247,6 @@ app.post('/login', (req, res) => {
 
 app.get("/verify", verifyToken, (req, res) => {
   res.json({ token: req.cookies.token });
-});
-
-app.get('/check-session', (req, res) => {
-    if (req.session.user) {
-        return res.json({ loggedIn: true, user: req.session.user });
-    } else {
-        return res.json({ loggedIn: false });
-    }
 });
 
 app.post('/logout', (req, res) => {
@@ -313,22 +303,21 @@ app.post('/register', (req, res) => {
     });
 })
 
-// app.get('/get/:id', verifyToken, (req, res) => {
-//     const sql = "CALL getUser(?)";
-//     const id = req.params.id
-    
-//     db.query(sql, [id], (err, result) => {
-//         if(err) return res.json({Message: "Error in Server"});
-//         return res.json({message: "berhasil menambahkan data"});
-//     })
-// })
-
 app.put('/updateRole/:id', verifyToken, (req, res) => {
     const sql = "CALL roleUpdate(?, ?)";
 
     db.query(sql, [req.params.id, req.body.role], (err, result) => {
         if(err) return res.status(500).json({Message : "Error dalam melakukan update"})
         return res.json({message: "berhasil mengupdate data"})
+    })
+})
+
+app.put('/updateBarang/:id', verifyToken, (req, res) => {
+    const sql = "CALL editBarang(?, ?, ?)";
+
+    db.query(sql, [req.params.id, req.body.namaBarang, req.body.jmlBarang], (err, result) => {
+        if(err) return res.status(500).json({Message : "Error dalam melakukan update barang"})
+        return res.json({Message : "Berhasil mengupdate barang"})
     })
 })
 
@@ -346,8 +335,8 @@ app.put('/update/:id', verifyToken, (req, res) => {
 
         const oldPass = oldData[0].password;
         
-        if (oldData.password === "google_oauth" || oldData.password === "facebook_oauth") {
-            db.query(sqlUpdate, [req.body.username, req.body.email, oldData.password, req.params.id], (err) => {
+        if (oldData[0].password === "google_oauth" || oldData[0].password === "facebook_oauth") {
+            db.query(sqlUpdate, [req.body.username, req.body.email, oldData[0].password, req.params.id], (err) => {
                 if (err) return res.status(500).json({ Message: "Error mengupdate data OAuth" });
                 return res.json({ Message: "Berhasil mengupdate data OAuth user (tanpa password)" });
             });
@@ -386,7 +375,7 @@ app.get('/', verifyToken, (req, res) => {
         const encryptedPayload = jwt.sign(
             { data: data }, 
             process.env.JWT_SECRET, 
-            { expiresIn: "5m" } // short-lived
+            { expiresIn: "5m" }
         );
 
         return res.json({token : encryptedPayload})
@@ -399,6 +388,16 @@ app.delete('/delete/:id', verifyToken, (req, res) => {
     db.query(sql, [id], (err, result) => {
         if(err) return res.json(err);
         return res.json({message: "berhasil melakukan delete data"});
+    })
+})
+
+app.delete('/deleteBarang/:id', verifyToken, (req, res) => {
+    const sql = "CALL deleteBarang(?)"
+    const id = req.params.id;
+
+    db.query(sql, [id], (err, result) => {
+        if(err) return res.json(err);
+        return res.json({message: "Berhasil melakukan delete barang"})
     })
 })
 

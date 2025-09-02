@@ -46,7 +46,7 @@ function HomeOnepage() {
 
     const fetchData = () => {
         const token = localStorage.getItem("token");
-        axios.get('http://localhost:8000/', {
+        axios.get(`${process.env.REACT_APP_API_URL}`, {
             headers: { "x-access-token": token }
         })
             .then(res => {
@@ -64,7 +64,7 @@ function HomeOnepage() {
 
     const fetchBooks = (uid) => {
         const token = localStorage.getItem('token');
-        axios.get(`http://localhost:8000/books/${uid}`, {
+        axios.get(`${process.env.REACT_APP_API_URL}/books/${uid}`, {
             headers: { "x-access-token": token }
         }).then(res => {
             const decode = jwtDecode(res.data.token);
@@ -86,7 +86,7 @@ function HomeOnepage() {
     }, [user.id]);
 
     const handleDelete = id => {
-        axios.delete(`http://localhost:8000/delete/${id}`, {
+        axios.delete(`${process.env.REACT_APP_API_URL}/delete/${id}`, {
             headers: { "x-access-token": localStorage.getItem("token") }
         })
             .then(() => {
@@ -96,7 +96,7 @@ function HomeOnepage() {
     };
 
     const handleLogout = () => {
-        axios.post('http://localhost:8000/logout', {}, { withCredentials: true })
+        axios.post(`${process.env.REACT_APP_API_URL}/logout`, {}, { withCredentials: true })
             .then(() => {
                 localStorage.removeItem("token");
                 navigate('/');
@@ -151,9 +151,6 @@ function HomeOnepage() {
                                             <Card.Title>{user.username}</Card.Title>
                                             <Card.Subtitle className="mb-2 text-muted">{user.email}</Card.Subtitle>
                                             <Card.Text>
-                                                <strong>Password:</strong> {user.password}
-                                            </Card.Text>
-                                            <Card.Text>
                                                 Role : {user.role}
                                             </Card.Text>
                                             <div className="d-flex justify-content-between">
@@ -172,10 +169,18 @@ function HomeOnepage() {
                         </div>
                     }
                 </Container>
-               
-                <Books 
-                    data={books}
-                />
+                <div>
+
+                </div>
+                <div className='w-50 bg-white rounded p-3 mb-4'>
+                    <Books 
+                        data={books}
+                        onInsert={() => fetchBooks(user.id)}
+                        onUpdated={() => fetchBooks(user.id)}
+                    />
+                </div>
+            
+                
 
                 <FormInsert 
                     onInsert={() => fetchBooks(user.id)}

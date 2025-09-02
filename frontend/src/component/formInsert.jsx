@@ -16,7 +16,7 @@ function FormInsert({onInsert}) {
     const handleSubmit = e => {
         e.preventDefault();
         const token = localStorage.getItem('token');
-        axios.post('http://localhost:8000/barang', value, {
+        axios.post(`${process.env.REACT_APP_API_URL}/barang`, value, {
             headers: { "x-access-token": token }
         })
         .then(res => {

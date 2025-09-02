@@ -18,17 +18,17 @@ function Login() {
   const navigate = useNavigate();
 
   const handleGoogleLogin = () => {
-    window.location.href = "http://localhost:8000/auth/google";
+    window.location.href = `${process.env.REACT_APP_API_URL}/auth/google`;
   };
 
   const handleFacebookLogin = () => {
-    window.location.href = "http://localhost:8000/auth/facebook";
+    window.location.href = `${process.env.REACT_APP_API_URL}/auth/facebook`;
    }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("google") === "true" || params.get("facebook") === "true") {
-      axios.get("http://localhost:8000/verify", { withCredentials: true })
+      axios.get(`${process.env.REACT_APP_API_URL}/verify`, { withCredentials: true })
         .then(res => {
           localStorage.setItem("token", res.data.token);
           navigate("/homeonepage");
@@ -43,7 +43,7 @@ function Login() {
     e.preventDefault();
     setError(logVal(value));
     if(error.username === "" && error.password === ""){
-      axios.post('http://localhost:8000/login', value)
+      axios.post(`${process.env.REACT_APP_API_URL}/login`, value)
       .then(res => {
         localStorage.setItem("token", res.data.token);
         // console.log(res);

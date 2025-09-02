@@ -4,20 +4,20 @@ import Button from 'react-bootstrap/Button';
 import axios from 'axios';
 import { useEffect } from 'react';
 
-function EditAdmin(props) {
-    const { user, onHide, onUpdated } = props;
+function EditBarang(props) {
+    const { barang, onHide, onUpdated } = props;
 
     const [values, setValues] = useState({
-        username: user.username,
-        role: user.role
+        namaBarang: barang.namaBarang,
+        jmlBarang: barang.jmlBarang
     });
 
     useEffect(() => {
         setValues({
-            username: user.username,
-            role: user.role
+            namaBarang : barang.namaBarang,
+            jmlBarang : barang.jmlBarang
         });
-    }, [user]);
+    }, [barang]);
 
     const handleInput = e => {
         setValues(prev => ({...prev, [e.target.name]: e.target.value
@@ -27,7 +27,7 @@ function EditAdmin(props) {
     const handleUpdate = e => {
         e.preventDefault();
         const token = localStorage.getItem("token");
-        axios.put(`${process.env.REACT_APP_API_URL}/updateRole/${user.id}`, values, {
+        axios.put(`${process.env.REACT_APP_API_URL}/updateBarang/${barang.idBarang}`, values, {
                 headers: { "x-access-token": token }
             })
             .then(() => {
@@ -50,23 +50,22 @@ function EditAdmin(props) {
             <Modal.Body>
                 <form onSubmit={handleUpdate}>
                     <div className="form-group mb-4">
-                        <label>Username</label>
+                        <label>Nama Barang</label>
                         <input
                             type="text"
                             className="form-control"
-                            name="username"
-                            value={values.username}
+                            name="namaBarang"
+                            value={values.namaBarang}
                             onChange={handleInput}
-                            disabled
                         />
                     </div>
                     <div className="form-group mb-4">
-                        <label>Role</label>
+                        <label>Jumlah Barang</label>
                         <input
                             type="text"
                             className="form-control"
-                            name="role"
-                            value={values.role}
+                            name="jmlBarang"
+                            value={values.jmlBarang}
                             onChange={handleInput}
                         />
                     </div>
@@ -80,4 +79,4 @@ function EditAdmin(props) {
     );
 }
 
-export default EditAdmin;
+export default EditBarang;

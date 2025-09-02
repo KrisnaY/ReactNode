@@ -33,7 +33,7 @@ function CenteredModal(props) {
     const handleUpdate = e => {
         e.preventDefault();
         const token = localStorage.getItem("token");
-        axios.put(`http://localhost:8000/update/${user.id}`, values, {
+        axios.put(`${process.env.REACT_APP_API_URL}/update/${user.id}`, values, {
                 headers: { "x-access-token": token }
             })
             .then(() => {
