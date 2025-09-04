@@ -16,7 +16,7 @@ dotenv.config();
 
 const app = express();
 app.use(cors({
-    origin: 'http://myapp.com',
+    origin: 'http://localhost:3000',
     credentials: true
 }));
 
@@ -43,28 +43,38 @@ const db = mysql.createConnection({
 })
 
 const verifyToken = (req, res, next) => {
-    const token = req.headers["x-access-token"] || req.cookies.token;
+  const token = req.cookies.token || req.headers["x-access-token"];
 
-    if (!token) {
-        return res.status(401).json({ message: "Tidak ada token" });
+  if (!token) {
+    return res.status(401).json({ message: "Tidak ada token" });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ message: "Token invalid or expired" });
     }
 
-    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    if (err) return res.status(403).json({ message: "Token invalid or expired" });
+    console.log(decoded);
 
-    db.query("CALL getToken(?)", [decoded.id], (err, result) => {
-      if (err) return res.status(500).json({ message: "error" });
-      if (result.length === 0) return res.status(401).json({ message: "User tidak ditemukan" });
+    const sql = "CALL getToken(?)";
+    db.query(sql, [decoded.id], (dbErr, result) => {
+      if (dbErr) {
+        return res.status(500).json({ message: "DB error" });
+      }
+      if (result[0].length === 0) {
+        return res.status(401).json({ message: "User not found" });
+      }
 
-      if (result[0].token !== token) {
-        return res.status(401).json({ message: "Token tidak sesuai, silahkan login kembali" });
+      const savedToken = result[0][0].token;
+      if (savedToken !== token) {
+        return res.status(401).json({ message: "Token mismatch, please login again" });
       }
 
       req.user = decoded;
       next();
     });
   });
-}
+};
 
 app.get('/books/:id', verifyToken, (req, res) => {
     const sql = "CALL selectBarang(?)";
@@ -86,7 +96,7 @@ app.get('/books/:id', verifyToken, (req, res) => {
 passport.use(new FacebookStrategy({
     clientID: process.env.FACEBOOK_APP_ID,
     clientSecret: process.env.FACEBOOK_APP_SECRET,
-    callbackURL: "http://api.myapp.com/auth/facebook/callback", 
+    callbackURL: "http://localhost:8000/auth/facebook/callback", 
     profileFields: ['emails', 'name']
   }, (accessToken, refreshToken, profile, cb) => {
         const fbId = profile.id;
@@ -101,12 +111,12 @@ passport.use(new FacebookStrategy({
         db.query(checkSql, [fbId, email], (err, result) => {
         if (err) return cb(err, null);
 
-        if (result.length === 0) {
+        if (result[0].length === 0) {
             const insertSql = "CALL fbInsert(?, ?, ?, ?, ?)";
             db.query(insertSql, [username, email, "facebook_oauth", fbId, 1], (err, insertResult) => {
             if (err) return cb(err, null);
                 return cb(null, { 
-                    id: insertResult.insertId, 
+                    id: insertResult[0][0].insertId, 
                     email, 
                     username, 
                     role: 1 
@@ -114,10 +124,10 @@ passport.use(new FacebookStrategy({
             });
         } else {
             return cb(null, { 
-                id: result[0].id, 
-                email: result[0].email, 
-                username: result[0].username, 
-                role: result[0].role 
+                id: result[0][0].id, 
+                email: result[0][0].email, 
+                username: result[0][0].username, 
+                role: result[0][0].role 
             });
         }
     });
@@ -129,52 +139,55 @@ app.get('/auth/facebook',
 app.get('/auth/facebook/callback',
   passport.authenticate('facebook', { failureRedirect: '/', session: false }),
     (req, res) => {
+        const user = req.user;
         const token = jwt.sign(
-        { id: req.user.id, email: req.user.email, username: req.user.username, role: req.user.role },
-        process.env.JWT_SECRET,
-        { expiresIn: "1h" }
+            { id: user.id, email: user.email, username: user.username, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: "1h" }
         );
 
-        db.query("CALL setToken(?, ?)", [token, req.user.id]);
-
-        res.cookie('token', token, { 
-            httpOnly: true, 
-            maxAge: 3600000 
+        db.query("CALL setToken(?,?)", [token, user.id], (err) => {
+            if (err) console.error("Error saving Google token:", err);
         });
 
-        res.redirect('http://myapp.com/?facebook=true');
+        res.cookie("token", token, { httpOnly: true, sameSite: "lax" });
+        res.redirect('http://localhost:3000/?facebook=true');
 });
 
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: "http://api.myapp.com/auth/google/callback"
+  callbackURL: "http://localhost:8000/auth/google/callback"
     }, (accessToken, refreshToken, profile, done) => {
         const email = profile.emails[0].value;
+        // console.log(email);
         const googleId = profile.id;
+        // console.log(googleId);
         const username = profile.displayName;
        
         const checkSql = "CALL googleCheck(?, ?)";
         db.query(checkSql, [email, googleId], (err, result) => {
             if (err) return done(err, null);
-
-            if (result.length === 0) {
-            const insertSql = "CALL googleInsert(?, ?, ?, ?, ?)";
-            db.query(insertSql, [username, email, "google_oauth", googleId, 1], (err, insertResult) => {
-                if (err) return done(err, null);
-                return done(null, { 
-                    id: insertResult.insertId, 
-                    email, 
-                    username,
-                    role: 1 
+        
+            if (result[0].length === 0) {
+                const insertSql = "CALL googleInsert(?, ?, ?, ?, ?)";
+                db.query(insertSql, [username, email, "google_oauth", googleId, 1], (err, insertResult) => {
+                    if (err) return done(err, null);
+                    // console.log(insertResult);
+                    return done(null, { 
+                        id: insertResult[0][0].id, 
+                        email: email, 
+                        username: username,
+                        role: 1 
+                    });
                 });
-            });
             } else {
-            return done(null, { 
-                id: result[0].id, 
-                email: email, 
-                username: username, 
-                role: result[0].role 
+                // console.log(result[0][0].id)
+                return done(null, { 
+                    id: result[0][0].id, 
+                    email: result[0][0].email, 
+                    username: result[0][0].username, 
+                    role: result[0][0].role 
             });
             }
         });
@@ -188,59 +201,60 @@ app.get("/auth/google",
 app.get("/auth/google/callback",
   passport.authenticate("google", { session: false }),
   (req, res) => {
+    const user = req.user;
+    // console.log(req.user);
+    // console.log(res.user);
     const token = jwt.sign(
-      { id: req.user.id, email: req.user.email, username: req.user.username, role: req.user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+        { id: user.id, email: user.email, username: user.username, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: "1h" }
     );
 
-    db.query("CALL setToken(?, ?)", [token, req.user.id], (err) => {
-        if (err) console.error("Error saving token:", err);
+    db.query("CALL setToken(?,?)", [token, user.id], (err) => {
+     if (err) console.error("Error saving Google token:", err);
     });
 
-    res.cookie('token', token, { 
-        httpOnly: true, 
-        maxAge: 3600000 
-    }); 
-
-    res.redirect(`http://myapp.com/?google=true`);
+    res.cookie("token", token, { httpOnly: true, sameSite: "lax" });
+    res.redirect(`http://localhost:3000/?google=true`);
   }
 );
 
-app.post('/login', (req, res) => {
+app.post("/login", (req, res) => {
+    const { username, password } = req.body;
     const sql = "CALL loginUser(?)";
-    const password = req.body.password.toString();
+    // console.log(username)  
 
-    db.query(sql, [req.body.username], (err, result) => {
-        if (err) return res.status(500).json({ error: "Server error" });
+    db.query(sql, [username], (err, result) => {
+        if (err) return res.status(500).json({ message: "Server error" });
         if (result.length === 0) {
-            return res.status(404).json({ loggedIn: false, message: "User tidak ditemukan" });
+        return res.status(404).json({ message: "User tidak ditemukan" });
         }
 
-        if(result[0].googleId && result[0].password === "google_oauth"){
-            return res.status(400).json({ message: "User ini terdaftar melalui Google OAuth. Silakan gunakan Google Login." });
-        }
-        if(result[0].googleId && result[0].password === "google_oauth"){
-            return res.status(400).json({ message: "User ini terdaftar melalui Google OAuth. Silakan gunakan Google Login." });
-        }
-        // console.log(result)
-        bcrypt.compare(password, result[0].password, (error, response) => {
-            if (error) return res.status(500).json({ error });
-            if (response) {
-                const token = jwt.sign(
-                { id: result[0].id, username: result[0].username, email: result[0].email, role: result[0].role },
+        const user = result[0][0];
+        // console.log(password);
+
+        if (user.password === "google_oauth" || user.password === "facebook_oauth") {
+            return res.status(400).json({ message: "Gunakan Google/Facebook login" });
+        } 
+
+        bcrypt.compare(password, user.password, (err, match) => {
+            console.log(match);
+            console.log(user.password);
+            if (err) return res.status(500).json({ message: "Error checking password" });
+            if (!match) return res.status(401).json({ message: "Password salah" });
+
+            const token = jwt.sign(
+                { id: user.id, email: user.email, username: user.username, role: user.role },
                 process.env.JWT_SECRET,
                 { expiresIn: "1h" }
-                );
+            );
 
-                db.query("UPDATE user SET token = ? WHERE id = ?", [token, result[0].id], (updateErr) => {
-                    if (updateErr) return res.status(500).json({ message: "Error saving token" });
-                    res.cookie("token", token, { httpOnly: true});
-                    res.json({ message: "Login success", token });
-                })
-            } else {
-                return res.status(401).json({ message: "Password salah" });
-            }
+            db.query("UPDATE user SET token = ? WHERE id = ?", [token, user.id], (updateErr) => {
+                if (updateErr) return res.status(500).json({ message: "Error saving token" });
+
+                res.cookie("token", token, { httpOnly: true, sameSite: "lax" });
+                res.json({ message: "Login berhasil", token });
+            });
         });
     });
 });
@@ -378,7 +392,7 @@ app.get('/', verifyToken, (req, res) => {
             { expiresIn: "5m" }
         );
 
-        return res.json({token : encryptedPayload})
+        return res.json({encryptedPayload})
     })
 })
 

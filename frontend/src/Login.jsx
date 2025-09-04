@@ -13,7 +13,7 @@ function Login() {
   const [error, setError] = useState({})
 
   const handleInput = e => {
-    setValue(prev => ({...prev, [e.target.name] : [e.target.value]}));
+    setValue(prev => ({...prev, [e.target.name] : e.target.value}));
   }
   const navigate = useNavigate();
 
@@ -27,8 +27,11 @@ function Login() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    // const token = localStorage.getItem('token')
     if (params.get("google") === "true" || params.get("facebook") === "true") {
-      axios.get(`${process.env.REACT_APP_API_URL}/verify`, { withCredentials: true })
+      axios.get(`${process.env.REACT_APP_API_URL}/verify`, { 
+        withCredentials: true
+       })
         .then(res => {
           localStorage.setItem("token", res.data.token);
           navigate("/homeonepage");

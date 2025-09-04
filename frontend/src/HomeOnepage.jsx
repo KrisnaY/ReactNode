@@ -33,6 +33,7 @@ function HomeOnepage() {
         const token = localStorage.getItem('token');
         if(token) {
             const decode = jwtDecode(token);
+            console.log(decode)
             setUser({
                 id: decode.id,
                 email: decode.email,
@@ -46,12 +47,13 @@ function HomeOnepage() {
 
     const fetchData = () => {
         const token = localStorage.getItem("token");
-        axios.get(`${process.env.REACT_APP_API_URL}`, {
+        axios.get(`${process.env.REACT_APP_API_URL}/`, {
             headers: { "x-access-token": token }
         })
-            .then(res => {
-                if(user.role === 0){
-                    const decode = jwtDecode(res.data.token);
+            .then(res => {{
+                    console.log(res);
+                    const decode = jwtDecode(res.data.encryptedPayload);
+                    console.log(decode);
                     setData(decode.data[0]);
                 }         
             })
@@ -80,7 +82,7 @@ function HomeOnepage() {
         if(user.id){
             fetchBooks(user.id);
         }
-        if(user.role === 0){
+        if(user.role == 0){
             fetchData()
         }
     }, [user.id]);
