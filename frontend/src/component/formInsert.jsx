@@ -1,6 +1,9 @@
 import axios from 'axios';
-import React, { useState } from 'react'
-import { Button, Form } from 'react-bootstrap'
+import React, { useState } from 'react';
+import { Button, Form, Card } from 'react-bootstrap';
+import { PlusCircle } from 'react-bootstrap-icons';
+
+
 
 function FormInsert({onInsert}) {
     const [value, setValue] = useState({
@@ -28,21 +31,38 @@ function FormInsert({onInsert}) {
 
   return (
     <>
-        <div className='w-50 bg-white rounded p-3'>
-            <Form onSubmit={handleSubmit}>
-                <Form.Group className="mb-3" controlId="formGroupUsername">
-                    <Form.Label>Nama Barang</Form.Label>
-                    <Form.Control type="text" placeholder="masukan nama barang" name='namaBarang'
-                    onChange={handleInput} />
-                </Form.Group>
-                <Form.Group className="mb-3" controlId="formGroupEmail">
-                    <Form.Label>Jumlah Barang</Form.Label>
-                    <Form.Control type="text" placeholder="masukan jumlah barang" name='jmlBarang'
-                    onChange={handleInput} />
-                </Form.Group>
-                <Button type="submit">Insert</Button>
-            </Form>
-        </div>
+        <Card className="shadow-sm border-0">
+            <Card.Body>
+                <h5 className="mb-3 fw-bold">➕ Tambah Barang</h5>
+                <Form onSubmit={handleSubmit}>
+                    <Form.Group className="mb-3">
+                        <Form.Label>Nama Barang</Form.Label>
+                        <Form.Control 
+                            type="text" 
+                            placeholder="Masukkan nama barang" 
+                            name='namaBarang'
+                            value={value.namaBarang}
+                            onChange={handleInput} 
+                            required
+                        />
+                    </Form.Group>
+                    <Form.Group className="mb-3">
+                        <Form.Label>Jumlah Barang</Form.Label>
+                        <Form.Control 
+                            type="number" 
+                            placeholder="Masukkan jumlah barang" 
+                            name='jmlBarang'
+                            value={value.jmlBarang}
+                            onChange={handleInput} 
+                            required
+                        />
+                    </Form.Group>
+                    <Button type="submit" variant="success">
+                        <PlusCircle className="me-1" /> Insert
+                    </Button>
+                </Form>
+            </Card.Body>
+        </Card>
     </>
   )
 }

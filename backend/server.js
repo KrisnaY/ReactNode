@@ -54,8 +54,6 @@ const verifyToken = (req, res, next) => {
       return res.status(403).json({ message: "Token invalid or expired" });
     }
 
-    console.log(decoded);
-
     const sql = "CALL getToken(?)";
     db.query(sql, [decoded.id], (dbErr, result) => {
       if (dbErr) {
@@ -89,7 +87,7 @@ app.get('/books/:id', verifyToken, (req, res) => {
             { expiresIn: "5m" }
         );
 
-        return res.json({token : encryptedPayload})
+        return res.json({encryptedPayload})
     })
 })
 
@@ -147,7 +145,7 @@ app.get('/auth/facebook/callback',
         );
 
         db.query("CALL setToken(?,?)", [token, user.id], (err) => {
-            if (err) console.error("Error saving Google token:", err);
+            if (err) console.error("Error saving facebook token:", err);
         });
 
         res.cookie("token", token, { httpOnly: true, sameSite: "lax" });
@@ -202,6 +200,7 @@ app.get("/auth/google/callback",
   passport.authenticate("google", { session: false }),
   (req, res) => {
     const user = req.user;
+    console.log(user);
     // console.log(req.user);
     // console.log(res.user);
     const token = jwt.sign(
@@ -238,8 +237,6 @@ app.post("/login", (req, res) => {
         } 
 
         bcrypt.compare(password, user.password, (err, match) => {
-            console.log(match);
-            console.log(user.password);
             if (err) return res.status(500).json({ message: "Error checking password" });
             if (!match) return res.status(401).json({ message: "Password salah" });
 

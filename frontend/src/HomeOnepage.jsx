@@ -10,6 +10,8 @@ import Button from 'react-bootstrap/Button';
 import CenteredModal from './component/CenteredModal.jsx';
 import FormInsert from './component/formInsert.jsx';
 import { jwtDecode } from 'jwt-decode';
+import { PersonCircle } from "react-bootstrap-icons";
+import Badge from 'react-bootstrap/Badge';
 import Books from './component/books.jsx';
 import EditAdmin from './component/EditAdmin.jsx';
 
@@ -69,7 +71,7 @@ function HomeOnepage() {
         axios.get(`${process.env.REACT_APP_API_URL}/books/${uid}`, {
             headers: { "x-access-token": token }
         }).then(res => {
-            const decode = jwtDecode(res.data.token);
+            const decode = jwtDecode(res.data.encryptedPayload);
             // console.log(decode)
             setBooks(decode.data);
         }).catch(err => {
@@ -117,77 +119,77 @@ function HomeOnepage() {
 
     return (
         <>
-            <Navbar bg="dark" variant='dark' data-bs-theme="dark">
+            <Navbar bg="dark" expand="lg" sticky="top" variant="dark">
                 <Container>
-                    <Navbar.Brand href="#home">Navbar</Navbar.Brand>
-                    <Nav className="me-auto">
-                        <Nav.Link href="#home">Home</Nav.Link>
-                        <Nav.Link as={Link} to="/create">Create</Nav.Link>
-                    </Nav>
-                    {user && user.username && (
-                        <Nav>
-                        <Nav.Link
-                            onClick={() => handleProfileClick(user)}
-                            style={{ cursor: "pointer" }}
-                        >
-                            Signed in as: <strong>{user.username}</strong>
-                        </Nav.Link>
+                    <Navbar.Brand as={Link} to="/homeonepage">📚 MyApp</Navbar.Brand>
+                    <Navbar.Toggle aria-controls="basic-navbar-nav" />
+                    <Navbar.Collapse id="basic-navbar-nav">
+                        <Nav className="me-auto">
+                            <Nav.Link as={Link} to="/homeonepage">Home</Nav.Link>
+                            <Nav.Link as={Link} to="/create">Create</Nav.Link>
                         </Nav>
-                    )}
-                    <Button onClick={handleLogout} variant="secondary">Logout</Button>
+                        {user && user.username && (
+                            <Nav className="me-3">
+                                <Nav.Link onClick={() => handleProfileClick(user)} style={{ cursor: "pointer" }}>
+                                    <PersonCircle size={20} className="me-1" />
+                                    {user.username}
+                                </Nav.Link>
+                            </Nav>
+                        )}
+                        <Button onClick={handleLogout} variant="outline-light" size="sm">Logout</Button>
+                    </Navbar.Collapse>
                 </Container>
             </Navbar>
 
-            <div className="d-flex flex-column align-items-center bg-primary min-vh-100 py-4">
+            <div className="d-flex flex-column align-items-center bg-light min-vh-100 py-4">
                 <Container>
-                    <div className="d-flex justify-content-between align-items-center mb-4">
-                        <h1 className="text-white">CRUD Cards</h1>
+                    {user.role === 0 && (
+                        <>
+                            <h2 className="mb-4 fw-bold text-dark">👥 Manage Users</h2>
+                            <div className="row g-4 mb-5">
+                                {data.map((u, i) => (
+                                    <div key={i} className="col-12 col-sm-6 col-md-4 col-lg-3">
+                                        <Card className="shadow-sm border-0 h-100">
+                                            <Card.Body>
+                                                <div className="d-flex align-items-center mb-3">
+                                                    <PersonCircle size={40} className="me-2 text-secondary" />
+                                                    <div>
+                                                        <Card.Title className="mb-0">{u.username}</Card.Title>
+                                                        <Card.Subtitle className="text-muted">{u.email}</Card.Subtitle>
+                                                    </div>
+                                                </div>
+                                                <Badge bg={u.role === 0 ? "danger" : "secondary"}>
+                                                    {u.role === 0 ? "Admin" : "User"}
+                                                </Badge>
+                                                <div className="d-flex justify-content-between mt-3">
+                                                    <Button onClick={() => handleUpdateClick(u)} variant="outline-primary" size="sm">
+                                                        Update
+                                                    </Button>
+                                                    <Button onClick={() => handleDelete(u.id)} variant="outline-danger" size="sm">
+                                                        Delete
+                                                    </Button>
+                                                </div>
+                                            </Card.Body>
+                                        </Card>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
+
+                    {/* Books Section */}
+                    <h2 className="mb-3 fw-bold text-dark">📦 Barang Anda</h2>
+                    <div className='bg-white rounded shadow-sm p-3 mb-4'>
+                        <Books 
+                            data={books}
+                            onInsert={() => fetchBooks(user.id)}
+                            onUpdated={() => fetchBooks(user.id)}
+                        />
                     </div>
 
-                    {user.role === 0 && 
-                        <div className="row g-4 mb-4">
-                            {data.map((user, i) => (
-                                <div key={i} className="col-12 col-sm-6 col-md-4 col-lg-3">
-                                    <Card className="shadow-sm">
-                                        <Card.Body>
-                                            <Card.Title>{user.username}</Card.Title>
-                                            <Card.Subtitle className="mb-2 text-muted">{user.email}</Card.Subtitle>
-                                            <Card.Text>
-                                                Role : {user.role}
-                                            </Card.Text>
-                                            <div className="d-flex justify-content-between">
-                                                <Button onClick={() => handleUpdateClick(user)} variant="primary" size="sm">
-                                                    Update
-                                                </Button>
-                                                <Button onClick={() => handleDelete(user.id)} variant="danger" size="sm">
-                                                    Delete
-                                                </Button>
-                                            </div>
-                                            
-                                        </Card.Body>
-                                    </Card>
-                                </div>
-                            ))}
-                        </div>
-                    }
+                    {/* Insert Form */}
+                    <FormInsert onInsert={() => fetchBooks(user.id)} />
                 </Container>
-                <div>
-
-                </div>
-                <div className='w-50 bg-white rounded p-3 mb-4'>
-                    <Books 
-                        data={books}
-                        onInsert={() => fetchBooks(user.id)}
-                        onUpdated={() => fetchBooks(user.id)}
-                    />
-                </div>
-            
-                
-
-                <FormInsert 
-                    onInsert={() => fetchBooks(user.id)}
-                />
-
             </div>
             
             {selectedUser && (

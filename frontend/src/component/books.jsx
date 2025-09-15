@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { Table } from "react-bootstrap";
+import { Table, Button } from "react-bootstrap";
 import axios from "axios";
 import EditBarang from "./EditBarang";
+import { PencilSquare, Trash } from "react-bootstrap-icons";
 
 function Books(props) {
   const { data, onUpdated } = props;
@@ -27,8 +28,8 @@ function Books(props) {
 
   return (
     <>
-      <Table striped="columns">
-        <thead>
+      <Table bordered hover responsive>
+        <thead className="table-dark">
           <tr>
             <th>#</th>
             <th>Nama Barang</th>
@@ -43,15 +44,29 @@ function Books(props) {
                 <td>{i + 1}</td>
                 <td>{barang.namaBarang}</td>
                 <td>{barang.jmlBarang}</td>
-                <td>
-                  <button onClick={() => handleUpdateClick(barang)}>Edit</button>
-                  <button onClick={() => handleDelete(barang.idBarang)}>Hapus</button>
+                <td className="d-flex gap-2">
+                  <Button
+                    variant="outline-primary"
+                    size="sm"
+                    onClick={() => handleUpdateClick(barang)}
+                  >
+                    <PencilSquare />
+                  </Button>
+                  <Button
+                    variant="outline-danger"
+                    size="sm"
+                    onClick={() => handleDelete(barang.idBarang)}
+                  >
+                    <Trash />
+                  </Button>
                 </td>
               </tr>
             ))
           ) : (
             <tr>
-              <td colSpan="4">Tidak memiliki barang</td>
+              <td colSpan="4" className="text-center text-muted">
+                Tidak memiliki barang
+              </td>
             </tr>
           )}
         </tbody>
