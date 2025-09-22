@@ -55,7 +55,7 @@ function Books(props) {
                   <Button
                     variant="outline-danger"
                     size="sm"
-                    onClick={() => handleDelete(barang.idBarang)}
+                    onClick={() => handleDelete(barang._id)}
                   >
                     <Trash />
                   </Button>

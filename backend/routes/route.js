@@ -7,10 +7,9 @@ import jwt from 'jsonwebtoken';
 import { Strategy as FacebookStrategy } from 'passport-facebook';
 import dotenv from 'dotenv'
 import { addUser, editRole, getAllUser, updateUser } from "../controller/userController.js";
-import { addBarang, deleteBarang, getBarangById } from "../controller/barangController.js";
+import { addBarang, deleteBarang, getBarangById, updateBarang } from "../controller/barangController.js";
 import { login } from "../controller/loginController.js";
 import User from "../models/user.js";
-import Barang from "../models/barang.js";
 
 const router = express.Router();
 
@@ -152,7 +151,14 @@ router.put('/update/:id', verifyToken, updateUser);
 router.get('/books/:id', verifyToken, getBarangById);
 router.delete('/deleteBarang/:id', verifyToken, deleteBarang);
 router.post('/barang', verifyToken, addBarang);
+router.put('/updateBarang/:id', verifyToken, updateBarang);
 router.put('/updateRole/:id', verifyToken, editRole);
+router.post('/logout', (req, res) => {
+    req.user = null;
+    res.clearCookie('token');
+    // localStorage.removeItem('token');
+    return res.json({ message: "Logged out" });
+});
 
 
 // router.get('/books/:id', verifyToken, (req, res) => {

@@ -23,10 +23,11 @@ function HomeOnepage() {
         username: '',
         role: ''
     });
+
     const [modal, setModal] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
     const [showProfileModal, setShowProfileModal] = useState(false);
-    const [books, setBooks] = useState([]);
+    const [barang, setBarang] = useState([]);
     const navigate = useNavigate();
 
     axios.defaults.withCredentials = true;
@@ -35,7 +36,7 @@ function HomeOnepage() {
         const token = localStorage.getItem('token');
         if(token) {
             const decode = jwtDecode(token);
-            console.log("user :", decode)
+            // console.log("user :", decode)
             setUser({
                 id: decode.id,
                 email: decode.email,
@@ -53,10 +54,10 @@ function HomeOnepage() {
             headers: { "x-access-token": token }
         })
             .then(res => {{
-                    console.log(res);
-                    const decode = jwtDecode(res.data.encryptedPayload);
-                    console.log(decode);
-                    setData(decode.data[0]);
+                    // console.log(res.data);
+                    const decode = jwtDecode(res.data);
+                    // console.log(decode);
+                    setData(decode.users);
                 }         
             })
             .catch(err => {
@@ -71,9 +72,10 @@ function HomeOnepage() {
         axios.get(`${process.env.REACT_APP_API_URL}/books/${uid}`, {
             headers: { "x-access-token": token }
         }).then(res => {
-            const decode = jwtDecode(res.data.encryptedPayload);
-            // console.log(decode)
-            setBooks(decode.data);
+            // console.log(res.data);
+            const decode = jwtDecode(res.data);
+            // console.log(decode);
+            setBarang(decode.barang);
         }).catch(err => {
             console.log(err);
         })
@@ -120,6 +122,7 @@ function HomeOnepage() {
     };
 
     const handleProfileClick = user => {
+        console.log(user);
         setSelectedUser(user);
         setShowProfileModal(true);
     };
@@ -193,7 +196,7 @@ function HomeOnepage() {
                     <h2 className="mb-3 fw-bold text-dark">📦 Barang Anda</h2>
                     <div className='bg-white rounded shadow-sm p-3 mb-4'>
                         <Books 
-                            data={books}
+                            data={barang}
                             onInsert={() => fetchBooks(user.id)}
                             onUpdated={() => fetchBooks(user.id)}
                         />
@@ -218,7 +221,8 @@ function HomeOnepage() {
                         user={selectedUser}
                         onHide={() => setShowProfileModal(false)}
                         onUpdated={() => {
-                            fetchBooks(user.id)
+                            fetchBooks(user.id);
+                            fetchData();
                             refreshUserFromToken();
                         }}
                     />

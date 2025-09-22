@@ -7,9 +7,13 @@ const saltRounds = 10
 export async function getAllUser(req, res) {
     try {
         const users = await User.find();
-        res.json(users);
+        const encryptedPayload = jwt.sign(
+            { users },
+            process.env.JWT_SECRET
+        )
+        res.send(encryptedPayload);
     } catch (error) {
-        console.log(error )
+        console.log(error);
         res.status(500).json({ message: error.message });
     }
 }

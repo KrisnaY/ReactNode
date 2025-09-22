@@ -26,8 +26,9 @@ function EditAdmin(props) {
 
     const handleUpdate = e => {
         e.preventDefault();
+        // console.log(user);
         const token = localStorage.getItem("token");
-        axios.put(`${process.env.REACT_APP_API_URL}/updateRole/${user.id}`, values, {
+        axios.put(`${process.env.REACT_APP_API_URL}/updateRole/${user._id}`, values, {
                 headers: { "x-access-token": token }
             })
             .then(() => {

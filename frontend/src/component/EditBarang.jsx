@@ -27,7 +27,7 @@ function EditBarang(props) {
     const handleUpdate = e => {
         e.preventDefault();
         const token = localStorage.getItem("token");
-        axios.put(`${process.env.REACT_APP_API_URL}/updateBarang/${barang.idBarang}`, values, {
+        axios.put(`${process.env.REACT_APP_API_URL}/updateBarang/${barang._id}`, values, {
                 headers: { "x-access-token": token }
             })
             .then(() => {
