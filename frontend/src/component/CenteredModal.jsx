@@ -36,8 +36,14 @@ function CenteredModal(props) {
         axios.put(`${process.env.REACT_APP_API_URL}/update/${user.id}`, values, {
                 headers: { "x-access-token": token }
             })
-            .then(() => {
-                if (onUpdated) onUpdated();
+            .then(res =>{
+                if(res.data.token){
+                    localStorage.setItem("token", res.data.token);
+                }
+                if(res.data.message){
+                    alert(res.data.message);
+                }
+                if(onUpdated) onUpdated();
                 onHide();
             })
             .catch(err => console.log(err));

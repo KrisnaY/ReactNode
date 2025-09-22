@@ -35,7 +35,7 @@ function HomeOnepage() {
         const token = localStorage.getItem('token');
         if(token) {
             const decode = jwtDecode(token);
-            console.log(decode)
+            console.log("user :", decode)
             setUser({
                 id: decode.id,
                 email: decode.email,
@@ -80,12 +80,11 @@ function HomeOnepage() {
     }
 
     useEffect(() => {
-        console.log(user);
         if(user.id){
             fetchBooks(user.id);
         }
         if(user.role == 0){
-            fetchData()
+            fetchData();
         }
     }, [user.id]);
 
@@ -97,6 +96,19 @@ function HomeOnepage() {
                 setData(prev => prev.filter(item => item.id !== id));
             })
             .catch(err => console.log(err));
+    };
+
+    const refreshUserFromToken = () => {
+        const token = localStorage.getItem('token');
+        if(token) {
+            const decode = jwtDecode(token);
+            setUser({
+                id: decode.id,
+                email: decode.email,
+                username: decode.username,
+                role: decode.role
+            });
+        }
     };
 
     const handleLogout = () => {
@@ -205,7 +217,10 @@ function HomeOnepage() {
                         show={showProfileModal}
                         user={selectedUser}
                         onHide={() => setShowProfileModal(false)}
-                        onUpdated={() => fetchBooks(user.id)}
+                        onUpdated={() => {
+                            fetchBooks(user.id)
+                            refreshUserFromToken();
+                        }}
                     />
                 </>
             )}

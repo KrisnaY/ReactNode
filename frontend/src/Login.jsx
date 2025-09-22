@@ -29,9 +29,7 @@ function Login() {
     const params = new URLSearchParams(window.location.search);
     // const token = localStorage.getItem('token')
     if (params.get("google") === "true" || params.get("facebook") === "true") {
-      axios.get(`${process.env.REACT_APP_API_URL}/verify`, { 
-        withCredentials: true
-       })
+      axios.get(`${process.env.REACT_APP_API_URL}/verify`, { withCredentials: true})
         .then(res => {
           localStorage.setItem("token", res.data.token);
           navigate("/homeonepage");
