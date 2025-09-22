@@ -1,6 +1,4 @@
-import express from "express";
-import mysql from 'mysql';
-import bcrypt from 'bcrypt';
+import express from "express";;
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import jwt from 'jsonwebtoken';
