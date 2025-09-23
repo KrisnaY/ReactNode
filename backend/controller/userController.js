@@ -32,6 +32,10 @@ export async function addUser(req, res) {
             facebookId: null
         });
         await newUser.save();
+
+        const io = req.app.get('io');
+        io.emit('newUser', { id: newUser._id, email: newUser.email, username: newUser.username, role: newUser.role });
+        
         res.json({ message: "Berhasil melakukan registrasi, silahkan login kembali" });
     } catch (error) {
         console.log(error)
@@ -70,6 +74,9 @@ export async function updateUser(req, res) {
         user.token = token;
         await user.save();
 
+        const io = req.app.get("io");
+        io.emit("updateUser", { _id: user._id, email: user.email, username: user.username, role: user.role });
+
         res.cookie("token", token, { httpOnly: true, sameSite: "lax" });
 
         res.json({ message: "User updated successfully", token });
@@ -80,11 +87,15 @@ export async function updateUser(req, res) {
 
 export async function deleteUser(req, res) {
     try {
-        const user = await User.findById(req.params.id);
-        if (!user) return res.status(404).json({ message: "User not found" });
-        await user.remove();
-        res.json({ message: "User deleted successfully" });
+        const deleteUser = await User.findByIdAndDelete(req.params.id);
+        if(deletedUser){
+            const io = req.app.get('io');
+            io.emit('deleteUser', {_id: deleteUser._id})
+        }
+
+        res.json({ message: "User berhasil dihapus" });
     } catch (err) {
+        console.log(err);
         res.status(500).json({ message: "Error dalam menghapus user" });
     }
 }
@@ -95,6 +106,10 @@ export async function editRole(req, res) {
         if (!user) return res.status(404).json({ message: "User not found" });
         user.role = req.body.role;
         await user.save();
+
+        const io = req.app.get("io");
+        io.emit("updateUser", { _id: user._id, email: user.email, username: user.username, role: user.role });
+
         res.json({ message: "User role updated successfully" });
     } catch (err) {
         console.log(err);

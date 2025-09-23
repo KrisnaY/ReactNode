@@ -14,6 +14,7 @@ import { PersonCircle } from "react-bootstrap-icons";
 import Badge from 'react-bootstrap/Badge';
 import Books from './component/books.jsx';
 import EditAdmin from './component/EditAdmin.jsx';
+import { io } from 'socket.io-client';
 
 function HomeOnepage() {
     const [data, setData] = useState([]);
@@ -23,6 +24,8 @@ function HomeOnepage() {
         username: '',
         role: ''
     });
+
+    const [socket, setSocket] = useState(null);
 
     const [modal, setModal] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
@@ -90,8 +93,48 @@ function HomeOnepage() {
         }
     }, [user.id]);
 
+    useEffect(() => {
+        const socket = io(process.env.REACT_APP_API_URL, {
+            withCredentials: true
+        });
+        setSocket(socket);
+
+        // Barang events
+        socket.on('newBarang', (newBarang) => {
+            setBarang(prev => [...prev, newBarang]);
+        });
+        socket.on('updateBarang', (updated) => {
+            console.log(updated);
+            setBarang(prev => prev.map(b => b._id === updated._id ? updated : b));
+        });
+        socket.on('deleteBarang', (id) => {
+            setBarang(prev => prev.filter(b => b.id !== id));
+        });
+
+        // User event
+        socket.on('newUser', (newUser) => {
+            setData(prev => [...prev, newUser]);
+        });
+        socket.on('updateUser', (updated) => {
+            // console.log(updated);
+            setData(prev => prev.map(u => u._id === updated._id ? { ...u, ...updated } : u));
+            if (user.id === updated._id) {
+                setUser(prev => ({ ...prev, ...updated }));
+            }
+        });
+        socket.on('deleteUser', (deleted) => {
+            setData(prev => prev.filter(u => u._id !== deleted._id));
+            if (user.id === deleted._id) {
+                localStorage.removeItem("token");
+                navigate('/');
+            }
+        });
+
+        return () => socket.close();
+    }, []);
+
     const handleDelete = id => {
-        axios.delete(`${process.env.REACT_APP_API_URL}/delete/${id}`, {
+        axios.delete(`${process.env.REACT_APP_API_URL}/delete/${id}`, {withCredentials: true},{
             headers: { "x-access-token": localStorage.getItem("token") }
         })
             .then(() => {
@@ -122,7 +165,7 @@ function HomeOnepage() {
     };
 
     const handleProfileClick = user => {
-        console.log(user);
+        // console.log(user);
         setSelectedUser(user);
         setShowProfileModal(true);
     };
@@ -180,7 +223,7 @@ function HomeOnepage() {
                                                     <Button onClick={() => handleUpdateClick(u)} variant="outline-primary" size="sm">
                                                         Update
                                                     </Button>
-                                                    <Button onClick={() => handleDelete(u.id)} variant="outline-danger" size="sm">
+                                                    <Button onClick={() => handleDelete(u._id)} variant="outline-danger" size="sm">
                                                         Delete
                                                     </Button>
                                                 </div>
@@ -197,13 +240,13 @@ function HomeOnepage() {
                     <div className='bg-white rounded shadow-sm p-3 mb-4'>
                         <Books 
                             data={barang}
-                            onInsert={() => fetchBooks(user.id)}
-                            onUpdated={() => fetchBooks(user.id)}
+                            onInsert={() => {}}
+                            onUpdated={() => {}}
                         />
                     </div>
 
                     {/* Insert Form */}
-                    <FormInsert onInsert={() => fetchBooks(user.id)} />
+                    <FormInsert onInsert={() => {}} />
                 </Container>
             </div>
             
@@ -213,7 +256,7 @@ function HomeOnepage() {
                         show={modal}
                         user={selectedUser}
                         onHide={() => setModal(false)}
-                        onUpdated={fetchData}
+                        onUpdated={() => {}}
                     />
 
                     <CenteredModal
@@ -221,8 +264,6 @@ function HomeOnepage() {
                         user={selectedUser}
                         onHide={() => setShowProfileModal(false)}
                         onUpdated={() => {
-                            fetchBooks(user.id);
-                            fetchData();
                             refreshUserFromToken();
                         }}
                     />

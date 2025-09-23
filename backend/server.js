@@ -8,12 +8,13 @@ import router from './routes/route.js'
 import { connectDB } from './config/db.js'
 import passport from 'passport'
 import http from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
-const io = new (require("socket.io"))(server, {
+const io = new SocketIOServer(server, {
     cors: {
         origin: "http://localhost:3000",
         credentials: true
@@ -23,6 +24,10 @@ const io = new (require("socket.io"))(server, {
 app.use(cookieParser());
 app.use(bodyParser.urlencoded({extended: false}))
 app.use(express.json());
+app.use(cors({
+    origin: 'http://localhost:3000',
+    credentials: true
+}));
 
 app.set('io', io);
 
@@ -44,6 +49,6 @@ connectDB(process.env.DB_CONN);
 
 app.use("", router );
 
-app.listen(process.env.PORT, () => {
+server.listen(process.env.PORT, () => {
     console.log(`Listening...`)
 })
