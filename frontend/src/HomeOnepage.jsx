@@ -25,6 +25,7 @@ function HomeOnepage() {
         role: ''
     });
 
+    const [token, setToken] = useState(localStorage.getItem('token'));
     const [socket, setSocket] = useState(null);
 
     const [modal, setModal] = useState(false);
@@ -36,8 +37,7 @@ function HomeOnepage() {
     // axios.defaults.withCredentials = true;
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if(token) {
+        if (token) {
             const decode = jwtDecode(token);
             // console.log("user :", decode)
             setUser({
@@ -46,21 +46,19 @@ function HomeOnepage() {
                 username: decode.username,
                 role: decode.role
             })
-        }else{
+        } else {
             navigate('/');
         }
-    }, []);
+    }, [token, navigate]);
 
      useEffect(() => {
-        const token = localStorage.getItem('token');
         if (!token) return;
-        // console.log(token);
+
         const newSocket = io(process.env.REACT_APP_API_URL, {
             auth: { token }
         });
         setSocket(newSocket);
 
-        // Listen for real-time updates
         newSocket.on('newBarang', (payload) => {
             const { barang: newBarang } = jwtDecode(payload);
             setBarang(prev => [...prev, newBarang]);
@@ -111,9 +109,8 @@ function HomeOnepage() {
         }
 
         return () => newSocket.close();
-    }, [user.id]);
+    }, [token, user.id, navigate]);
 
-    // CRUD actions via socket
     const handleDelete = async (id) => {
         if(!window.confirm("Apakah anda yakin menghapus user ini?")) return;
         try {
@@ -139,9 +136,10 @@ function HomeOnepage() {
                 } else {
                     console.error('Server logout failed:', response.error);
                 }
-                // Always perform client-side logout
+        
                 socket.disconnect();
                 localStorage.removeItem("token");
+                setToken(null);
                 navigate('/');
             });
         }
@@ -149,15 +147,7 @@ function HomeOnepage() {
 
     const refreshUserFromToken = () => {
         const token = localStorage.getItem('token');
-        if(token) {
-            const decode = jwtDecode(token);
-            setUser({
-                id: decode.id,
-                email: decode.email,
-                username: decode.username,
-                role: decode.role
-            });
-        }
+        setToken(token);
     };
 
     const handleProfileClick = user => {
