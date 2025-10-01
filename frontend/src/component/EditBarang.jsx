@@ -5,7 +5,7 @@ import axios from 'axios';
 import { useEffect } from 'react';
 
 function EditBarang(props) {
-    const { barang, onHide, onUpdated } = props;
+    const { barang, onHide, onUpdated, socket } = props;
 
     const [values, setValues] = useState({
         namaBarang: barang.namaBarang,
@@ -26,15 +26,17 @@ function EditBarang(props) {
 
     const handleUpdate = e => {
         e.preventDefault();
-        const token = localStorage.getItem("token");
-        axios.put(`${process.env.REACT_APP_API_URL}/updateBarang/${barang._id}`, values, {
-                headers: { "x-access-token": token }
-            })
-            .then(() => {
+        
+        if(!socket) return;
+        socket.emit('updateBarang', { id: barang._id, data: values }, (res) => {
+            if(res && res.success) {
+                alert('Data berhasil diupdate');
                 if (onUpdated) onUpdated();
                 onHide();
-            })
-            .catch(err => console.log(err));
+            } else {
+                alert('Gagal mengupdate data: ' + res.error);
+            }
+        });
     };
 
     return (

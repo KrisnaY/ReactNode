@@ -7,7 +7,8 @@ function Register () {
     const [value, setValue] = useState({
         username: '',
         email:'',
-        password: ''
+        password: '',
+        confirm:''
     });
 
     const navigate = useNavigate();
@@ -24,7 +25,8 @@ function Register () {
     if(error.username === "" && error.email === "" && error.password === ""){
         axios.post('http://localhost:8000/register', value)
         .then(res => {
-            console.log(res);
+            // console.log(res);
+            alert(res.data.message);
             navigate('/')
         })
         .catch(err => console.log(err));
@@ -50,6 +52,12 @@ function Register () {
             <div className="form-group mb-3">
                 <label >Password</label>
                 <input type="password" className="form-control" id="exampleInputPassword1" name="password" 
+                onChange={handleInput}/>
+                {error.password && <span className='text-danger'>{error.password}</span>}
+            </div>
+            <div className="form-group mb-3">
+                <label >Confirm Password</label>
+                <input type="password" className="form-control" id="exampleInputPassword1" name="confirm" 
                 onChange={handleInput}/>
                 {error.password && <span className='text-danger'>{error.password}</span>}
             </div>

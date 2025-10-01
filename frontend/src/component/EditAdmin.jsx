@@ -5,7 +5,7 @@ import axios from 'axios';
 import { useEffect } from 'react';
 
 function EditAdmin(props) {
-    const { user, onHide, onUpdated } = props;
+    const { user, onHide, onUpdated, socket } = props;
 
     const [values, setValues] = useState({
         username: user.username,
@@ -20,23 +20,26 @@ function EditAdmin(props) {
     }, [user]);
 
     const handleInput = e => {
-        setValues(prev => ({...prev, [e.target.name]: e.target.value
+        setValues(prev => ({
+            ...prev, 
+            [e.target.name]: e.target.value
         }));
     };
 
     const handleUpdate = e => {
         e.preventDefault();
         // console.log(user);
-        const token = localStorage.getItem("token");
-        axios.put(`${process.env.REACT_APP_API_URL}/updateRole/${user._id}`, values, {
-                headers: { "x-access-token": token }
-            })
-            .then(() => {
+        if(!socket) return;
+        socket.emit('editRole', { id: user._id, role: values.role }, (res) => {
+            if(res && res.success) {
+                alert('Role berhasil diupdate');
                 if (onUpdated) onUpdated();
                 onHide();
-            })
-            .catch(err => console.log(err));
-    };
+            } else {
+                alert('Gagal mengupdate role: ' + res.error);
+            }
+        });
+   };
 
     return (
         <Modal

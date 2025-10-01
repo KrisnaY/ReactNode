@@ -4,116 +4,79 @@ import jwt from "jsonwebtoken";
 
 const saltRounds = 10
 
-export async function getAllUser(req, res) {
-    try {
-        const users = await User.find();
-        const encryptedPayload = jwt.sign(
-            { users },
-            process.env.JWT_SECRET
-        )
-        res.send(encryptedPayload);
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ message: error.message });
-    }
+export async function getAllUser() {
+    const users = await User.find();
+    const encryptedPayload = jwt.sign(
+        { users },
+        process.env.JWT_SECRET
+    )
+    return encryptedPayload;
 }
 
-export async function addUser(req, res) {
-    try {
-        const hash = await bcrypt.hash(req.body.password, saltRounds);
-        // const pass = password.toString();
-        const newUser = new User({
-            username: req.body.username,
-            email: req.body.email,
-            password: hash,
-            role: 1,
-            token: null,
-            googleId: null,
-            facebookId: null
-        });
-        await newUser.save();
-
-        const io = req.app.get('io');
-        io.emit('newUser', { id: newUser._id, email: newUser.email, username: newUser.username, role: newUser.role });
-        
-        res.json({ message: "Berhasil melakukan registrasi, silahkan login kembali" });
-    } catch (error) {
-        console.log(error)
-        res.status(500).json({ message: error.message });
-    }
+export async function addUser(data) {
+    const hash = await bcrypt.hash(req.body.password, saltRounds);
+    // const pass = password.toString();
+    const newUser = new User({
+        username: data.username,
+        email: data.email,
+        password: hash,
+        role: 1,
+        token: null,
+        googleId: null,
+        facebookId: null
+    });
+    await newUser.save();
+    return newUser;
 }
 
-export async function updateUser(req, res) {
-    try {
-        const user = await User.findById(req.params.id);
-        if (!user) return res.status(404).json({ message: "User not found" });
+export async function updateUser(id, data) {
+    const user = await User.findById(id);
+    if (!user) return new Error("User tidak ditemukan, silahkan registrasi")
 
-        if (user.password === "google_oauth" || user.password === "facebook_oauth") {
-            user.username = req.body.username;
-            user.email = req.body.email;
-            await user.save();
-        } else {
-            const match = await bcrypt.compare(req.body.oldpassword, user.password);
-            if (!match) return res.status(401).json({ message: "Password lama salah" });
-
-            if (req.body.password) {
-                user.password = await bcrypt.hash(req.body.password, 10);
-            }
-            user.username = req.body.username;
-            user.email = req.body.email;
-            await user.save();
-        }
-
-        // Generate new JWT token
-        const token = jwt.sign(
-            { id: user._id, email: user.email, username: user.username, role: user.role },
-            process.env.JWT_SECRET,
-            { expiresIn: "1h" }
-        );
-
-        user.token = token;
+    if (user.password === "google_oauth" || user.password === "facebook_oauth") {
+        user.username = data.username;
+        user.email = data.email;
         await user.save();
+    
+    } else {
+        // console.log(id);
+        // console.log(data);
+        const match = await bcrypt.compare(data.oldpassword, user.password);
+        if (!match) return new Error("Password salah");
 
-        const io = req.app.get("io");
-        io.emit("updateUser", { _id: user._id, email: user.email, username: user.username, role: user.role });
-
-        res.cookie("token", token, { httpOnly: true, sameSite: "lax" });
-
-        res.json({ message: "User updated successfully", token });
-    } catch (err) {
-        res.status(500).json({ message: "Error dalam melakukan update" });
-    }
-}
-
-export async function deleteUser(req, res) {
-    try {
-        const deleteUser = await User.findByIdAndDelete(req.params.id);
-        if(deletedUser){
-            const io = req.app.get('io');
-            io.emit('deleteUser', {_id: deleteUser._id})
+        if (data.password) {
+            user.password = await bcrypt.hash(req.body.password, 10);
         }
-
-        res.json({ message: "User berhasil dihapus" });
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ message: "Error dalam menghapus user" });
+        user.username = data.username;
+        user.email = data.email;
+        await user.save();
     }
+
+    // Generate new JWT token
+    const token = jwt.sign(
+        { id: user._id, email: user.email, username: user.username, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: "1h" }
+    );
+
+    user.token = token;
+    await user.save();
+
+    return { user, token };
 }
 
-export async function editRole(req, res) {
-    try {
-        const user = await User.findById(req.params.id);
-        if (!user) return res.status(404).json({ message: "User not found" });
-        user.role = req.body.role;
-        await user.save();
+export async function deleteUser(id) {
+    const deleteUser = await User.findByIdAndDelete(id);
+    
+    return deleteUser;
+}
 
-        const io = req.app.get("io");
-        io.emit("updateUser", { _id: user._id, email: user.email, username: user.username, role: user.role });
+export async function editRole(id, role) {
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    user.role = role;
+    await user.save();
 
-        res.json({ message: "User role updated successfully" });
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ message: "Error updating user role" });
-    }
+    return user;
 }
 

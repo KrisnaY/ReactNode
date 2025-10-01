@@ -5,7 +5,7 @@ import axios from 'axios';
 import { useEffect } from 'react';
 
 function CenteredModal(props) {
-    const { user, onHide, onUpdated } = props;
+    const { user, onHide, onUpdated, socket } = props;
 
     const [values, setValues] = useState({
         username: user.username,
@@ -32,21 +32,18 @@ function CenteredModal(props) {
 
     const handleUpdate = e => {
         e.preventDefault();
-        const token = localStorage.getItem("token");
-        axios.put(`${process.env.REACT_APP_API_URL}/update/${user.id}`, values, {
-                headers: { "x-access-token": token }
-            })
-            .then(res =>{
-                if(res.data.token){
-                    localStorage.setItem("token", res.data.token);
-                }
-                if(res.data.message){
-                    alert(res.data.message);
-                }
-                if(onUpdated) onUpdated();
+        if(!socket) return;
+        console.log(user);
+        socket.emit('editProfile', { id: user.id, data: values }, (res) => {
+            if(res && res.success) {
+                alert('Data berhasil diupdate');
+                localStorage.setItem("token", res.token);
+                if (onUpdated) onUpdated(res.token);
                 onHide();
-            })
-            .catch(err => console.log(err));
+            } else {
+                alert('Gagal mengupdate data: ' + res.error);
+            }
+        });
     };
 
     return (
@@ -97,7 +94,7 @@ function CenteredModal(props) {
                                 name="oldpassword"
                                 onChange={handleInput} />
                         </div>
-                    <div className="form-group mb-4">
+                    {/* <div className="form-group mb-4">
                         <label>Role</label>
                         <input
                             type="text"
@@ -106,7 +103,7 @@ function CenteredModal(props) {
                             value={values.role}
                             onChange={handleInput}
                         />
-                    </div>
+                    </div> */}
                     
                     <Modal.Footer>
                         <Button type="submit">Edit</Button>

@@ -33,7 +33,7 @@ function HomeOnepage() {
     const [barang, setBarang] = useState([]);
     const navigate = useNavigate();
 
-    axios.defaults.withCredentials = true;
+    // axios.defaults.withCredentials = true;
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -51,78 +51,44 @@ function HomeOnepage() {
         }
     }, []);
 
-    const fetchData = () => {
-        const token = localStorage.getItem("token");
-        axios.get(`${process.env.REACT_APP_API_URL}/`, {
-            headers: { "x-access-token": token }
-        })
-            .then(res => {{
-                    // console.log(res.data);
-                    const decode = jwtDecode(res.data);
-                    // console.log(decode);
-                    setData(decode.users);
-                }         
-            })
-            .catch(err => {
-                if(err.response?.status === 401 || err.response?.status === 403){
-                    navigate('/')
-                }
-            });
-    };
-
-    const fetchBooks = (uid) => {
+     useEffect(() => {
         const token = localStorage.getItem('token');
-        axios.get(`${process.env.REACT_APP_API_URL}/books/${uid}`, {
-            headers: { "x-access-token": token }
-        }).then(res => {
-            // console.log(res.data);
-            const decode = jwtDecode(res.data);
-            // console.log(decode);
-            setBarang(decode.barang);
-        }).catch(err => {
-            console.log(err);
-        })
-    }
-
-    useEffect(() => {
-        if(user.id){
-            fetchBooks(user.id);
-        }
-        if(user.role == 0){
-            fetchData();
-        }
-    }, [user.id]);
-
-    useEffect(() => {
-        const socket = io(process.env.REACT_APP_API_URL, {
-            withCredentials: true
+        if (!token) return;
+        // console.log(token);
+        const newSocket = io(process.env.REACT_APP_API_URL, {
+            auth: { token }
         });
-        setSocket(socket);
+        setSocket(newSocket);
 
-        // Barang events
-        socket.on('newBarang', (newBarang) => {
+        // Listen for real-time updates
+        newSocket.on('newBarang', (payload) => {
+            const { barang: newBarang } = jwtDecode(payload);
             setBarang(prev => [...prev, newBarang]);
         });
-        socket.on('updateBarang', (updated) => {
-            console.log(updated);
-            setBarang(prev => prev.map(b => b._id === updated._id ? updated : b));
+        newSocket.on('updateBarang', (payload) => {
+            console.log(payload);
+            const { barang: updatedBarang } = jwtDecode(payload);
+            console.log(updatedBarang);
+            setBarang(prev => prev.map(b => b._id === updatedBarang._id ? updatedBarang : b));
         });
-        socket.on('deleteBarang', (id) => {
-            setBarang(prev => prev.filter(b => b.id !== id));
+        newSocket.on('deleteBarang', (payload) => {
+            const { id } = jwtDecode(payload);
+            setBarang(prev => prev.filter(b => b._id !== id));
         });
 
-        // User event
-        socket.on('newUser', (newUser) => {
+        newSocket.on('newUser', (payload) => {
+            const { user: newUser } = jwtDecode(payload);
             setData(prev => [...prev, newUser]);
         });
-        socket.on('updateUser', (updated) => {
-            // console.log(updated);
-            setData(prev => prev.map(u => u._id === updated._id ? { ...u, ...updated } : u));
-            if (user.id === updated._id) {
-                setUser(prev => ({ ...prev, ...updated }));
+        newSocket.on('updateUser', (payload) => {
+            const { user: updatedUser } = jwtDecode(payload);
+            setData(prev => prev.map(u => u._id === updatedUser._id ? { ...u, ...updatedUser } : u));
+            if (user.id === updatedUser._id) {
+                setUser(prev => ({ ...prev, ...updatedUser }));
             }
         });
-        socket.on('deleteUser', (deleted) => {
+        newSocket.on('deleteUser', (payload) => {
+            const deleted = jwtDecode(payload);
             setData(prev => prev.filter(u => u._id !== deleted._id));
             if (user.id === deleted._id) {
                 localStorage.removeItem("token");
@@ -130,17 +96,55 @@ function HomeOnepage() {
             }
         });
 
-        return () => socket.close();
-    }, []);
+        // fetch
+        newSocket.emit('getAllUser', (res) => {
+            if (res.success) {
+                const { users } = jwtDecode(res.users);
+                setData(users);
+            }
+        });
+        if (user.id) {
+            newSocket.emit('getBarangById', user.id, (res) => {
+                const decodedToken = jwtDecode(res.barang);
+                if (res.success) setBarang(decodedToken.barang);
+            });
+        }
 
-    const handleDelete = id => {
-        axios.delete(`${process.env.REACT_APP_API_URL}/delete/${id}`, {withCredentials: true},{
-            headers: { "x-access-token": localStorage.getItem("token") }
-        })
-            .then(() => {
-                setData(prev => prev.filter(item => item.id !== id));
-            })
-            .catch(err => console.log(err));
+        return () => newSocket.close();
+    }, [user.id]);
+
+    // CRUD actions via socket
+    const handleDelete = async (id) => {
+        if(!window.confirm("Apakah anda yakin menghapus user ini?")) return;
+        try {
+            if(!socket) return;
+            socket.emit('deleteUser', id, (res) => {
+                if(res && res.success) {
+                    alert('Data berhasil dihapus');
+                } else {
+                    alert('Gagal menghapus data: ' + res.error);
+                }
+            });
+        } catch (error) {
+            console.error("Error menghapus barang:", error);
+            alert("Gagal menghapus barang");
+        }
+    };
+
+    const handleLogout = () => {
+        if (socket) {
+            socket.emit('logout', (response) => {
+                if (response.success) {
+                    console.log('Logout successful on server');
+                } else {
+                    console.error('Server logout failed:', response.error);
+                }
+                // Always perform client-side logout
+                socket.disconnect();
+                localStorage.removeItem("token");
+                navigate('/');
+            });
+        }
     };
 
     const refreshUserFromToken = () => {
@@ -156,16 +160,7 @@ function HomeOnepage() {
         }
     };
 
-    const handleLogout = () => {
-        axios.post(`${process.env.REACT_APP_API_URL}/logout`, {}, { withCredentials: true })
-            .then(() => {
-                localStorage.removeItem("token");
-                navigate('/');
-        });
-    };
-
     const handleProfileClick = user => {
-        // console.log(user);
         setSelectedUser(user);
         setShowProfileModal(true);
     };
@@ -240,13 +235,17 @@ function HomeOnepage() {
                     <div className='bg-white rounded shadow-sm p-3 mb-4'>
                         <Books 
                             data={barang}
+                            socket={socket}
                             onInsert={() => {}}
                             onUpdated={() => {}}
                         />
                     </div>
 
                     {/* Insert Form */}
-                    <FormInsert onInsert={() => {}} />
+                    <FormInsert 
+                    id={user.id}
+                    socket={socket}
+                    onInsert={() => {}} />
                 </Container>
             </div>
             
@@ -255,6 +254,7 @@ function HomeOnepage() {
                     <EditAdmin
                         show={modal}
                         user={selectedUser}
+                        socket={socket}
                         onHide={() => setModal(false)}
                         onUpdated={() => {}}
                     />
@@ -262,9 +262,12 @@ function HomeOnepage() {
                     <CenteredModal
                         show={showProfileModal}
                         user={selectedUser}
+                        socket={socket}
                         onHide={() => setShowProfileModal(false)}
-                        onUpdated={() => {
-                            refreshUserFromToken();
+                        onUpdated={(newToken) => {
+                            if (newToken) {
+                                refreshUserFromToken(); // This will now read the new token from localStorage
+                            }
                         }}
                     />
                 </>

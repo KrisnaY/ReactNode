@@ -6,7 +6,7 @@ import { Strategy as FacebookStrategy } from 'passport-facebook';
 import dotenv from 'dotenv'
 import { addUser, deleteUser, editRole, getAllUser, updateUser } from "../controller/userController.js";
 import { addBarang, deleteBarang, getBarangById, updateBarang } from "../controller/barangController.js";
-import { facebookCb, googleCb, login } from "../controller/loginController.js";
+import { facebookCb, googleCb, login, registerUser } from "../controller/loginController.js";
 import User from "../models/user.js";
 
 const router = express.Router();
@@ -61,7 +61,7 @@ passport.use(new GoogleStrategy({
 
 passport.use(new FacebookStrategy({
   clientID: process.env.FACEBOOK_APP_ID,
-  clientSecret: process.env.FACEBOOK_APP_ID,
+  clientSecret: process.env.FACEBOOK_APP_SECRET,
   callbackURL: "/auth/facebook/callback",
   profileFields: ["id", "displayName", "emails"]
 }, async (accessToken, refreshToken, profile, done) => {
@@ -97,6 +97,8 @@ passport.deserializeUser(async (id, done) => {
 
 router.post('/login', login);
 
+router.post("/register", registerUser);
+
 router.get("/auth/google",
   passport.authenticate("google", { scope: ["profile", "email"] })
 );
@@ -119,20 +121,20 @@ router.get("/verify", (req, res) => {
   res.json({ token });
 });
 
-router.get('/', getAllUser);
-router.post('/user', verifyToken, addUser);
-router.put('/update/:id', verifyToken, updateUser);
-router.get('/books/:id', verifyToken, getBarangById);
-router.delete('/deleteBarang/:id', verifyToken, deleteBarang);
-router.post('/barang', verifyToken, addBarang);
-router.put('/updateBarang/:id', verifyToken, updateBarang);
-router.put('/updateRole/:id', verifyToken, editRole);
-router.delete('/delete/:id', verifyToken, deleteUser);
-router.post('/logout', (req, res) => {
-    req.user = null;
-    res.clearCookie('token');
-    // localStorage.removeItem('token');
-    return res.json({ message: "Logged out" });
-});
+// router.get('/', getAllUser);
+// router.post('/user', verifyToken, addUser);
+// router.put('/update/:id', verifyToken, updateUser);
+// router.get('/books/:id', verifyToken, getBarangById);
+// router.delete('/deleteBarang/:id', verifyToken, deleteBarang);
+// router.post('/barang', verifyToken, addBarang);
+// router.put('/updateBarang/:id', verifyToken, updateBarang);
+// router.put('/updateRole/:id', verifyToken, editRole);
+// router.delete('/delete/:id', verifyToken, deleteUser);
+// router.post('/logout', (req, res) => {
+//     req.user = null;
+//     res.clearCookie('token');
+//     // localStorage.removeItem('token');
+//     return res.json({ message: "Logged out" });
+// });
 
 export default router;

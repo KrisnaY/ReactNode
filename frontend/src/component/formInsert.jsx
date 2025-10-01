@@ -2,10 +2,11 @@ import axios from 'axios';
 import React, { useState } from 'react';
 import { Button, Form, Card } from 'react-bootstrap';
 import { PlusCircle } from 'react-bootstrap-icons';
+import { jwtDecode } from 'jwt-decode';
 
 
-
-function FormInsert({onInsert}) {
+function FormInsert(props) {
+    const { onInsert, socket, id } = props; 
     const [value, setValue] = useState({
         namaBarang: '',
         jmlBarang: '',
@@ -17,16 +18,22 @@ function FormInsert({onInsert}) {
     }
 
     const handleSubmit = e => {
+
         e.preventDefault();
-        const token = localStorage.getItem('token');
-        axios.post(`${process.env.REACT_APP_API_URL}/barang`, value, {
-            headers: { "x-access-token": token }
+        if(!socket) return;
+        socket.emit('addBarang', {  id: id, data: value }, (res) => {
+            if(res && res.success) {
+                alert('Data berhasil ditambahkan');
+                setValue({
+                    namaBarang: '',
+                    jmlBarang: '',
+                    jenisBarang: ''
+                });
+                if (onInsert) onInsert();
+            } else {
+                alert('Gagal menambahkan data: ' + res.error);
+            }   
         })
-        .then(res => {
-            if (onInsert) onInsert()
-            console.log(res);
-        })
-        .catch(err => console.log(err));
     }
 
   return (

@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 import { Table, Button } from "react-bootstrap";
-import axios from "axios";
 import EditBarang from "./EditBarang";
 import { PencilSquare, Trash } from "react-bootstrap-icons";
 
 function Books(props) {
-  const { data, onUpdated } = props;
+  const { data, onUpdated, socket } = props;
   const [modal, setModal] = useState(false);
   const [selectedBarang, setSelectedBarang] = useState(null);
 
@@ -15,14 +14,20 @@ function Books(props) {
   };
 
   const handleDelete = async (id) => {
+    if(!window.confirm("Are you sure to delete this item?")) return;
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL}/deleteBarang/${id}`, {
-        headers: { "x-access-token": localStorage.getItem("token") },
-        withCredentials: true,
+      if(!socket) return;
+      socket.emit('deleteBarang', id, (res) => {
+        if(res && res.success) {
+            alert('Data berhasil dihapus');
+            if (onUpdated) onUpdated();
+        } else {
+            alert('Gagal menghapus data: ' + res.error);
+        }
       });
-      onUpdated();
-    } catch (err) {
-      console.error("Error deleting barang:", err);
+    } catch (error) {
+      console.error("Error menghapus barang:", error);
+      alert("Gagal menghapus barang");
     }
   };
 
@@ -76,6 +81,7 @@ function Books(props) {
         <EditBarang
           show={modal}
           barang={selectedBarang}
+          socket={socket}
           onHide={() => setModal(false)}
           onUpdated={onUpdated}
         />
